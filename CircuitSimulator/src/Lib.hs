@@ -1,48 +1,51 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE DataKinds, TypeFamilies, GADTs #-}
+
 module Lib
     ( someFunc
     ) where
 
-import Data.String
-
 someFunc :: IO ()
 someFunc = putStrLn "someFunc"
 
-data Component = Component {unid       :: String,
-                            resistance :: Float,
-                            voltage    :: Float,
-                            current    :: Float}
-data Result = Result {      rOver      :: Float,
-                            vOver      :: Float,
-                            cOver      :: Float}
-    deriving Show
+data Nat = Zero
+         | Succ Nat
 
-data Link = Link {from :: String, to :: String}
-    deriving Show
+class Comp c where
+    type Input c  :: Nat
+    type Output c :: Nat
+    getResistance :: c -> Float
 
-defaultComponent :: Component
-defaultComponent = Component {unid       = "", 
-                              resistance = 0,
-                              voltage    = 0,
-                              current    = 0}
-defaultResult :: Result
-defaultResult = Result {rOver      = 0,
-                        vOver      = 0,
-                        cOver      = 0}
+data SPGraph (i :: Nat) (o :: Nat) where
+    Serial    :: SPGraph i o -> SPGraph i o -> SPGraph i o
+    Parallel  :: SPGraph i o -> SPGraph i o -> SPGraph i o
+    Primitive :: Comp c => c -> SPGraph (Input c) (Output c)
 
-components :: [Component]
-components = [defaultComponent {unid = "b1", voltage = 2, vOver = 2},
-              defaultComponent {unid = "r1", resistance = 5}]
+newtype Resistance = Resistance {r :: Float}
 
-links :: [Link]
-links = [Link {from = "b1", to = "r1"}, Link {from = "r1", to = "b1"}]
+data Battery = Battery
 
-data SPgraph a = Parallel (SPgraph a) (SPgraph a)
-               | Series (SPgraph a) (SPgraph a)
-               | Edge a
-    deriving Show
+instance Comp Resistance where
+    type (Input Resistance)  = 'Zero
+    type (Output Resistance) = 'Zero
+    getResistance = r
 
-testSP :: SPgraph Component
-testSP = Series (Edge (head components)) (Edge (components !! 1))
+-- instance Comp Battery where
+--     type (Input Battery)  = 'Zero
+--     type (Output Battery) = 'Zero
 
-mkrOver :: SPgraph Component -> SPgraph Result
+calcRes :: SPGraph (Input Resistance) (Output Resistance) -> Float
+calcRes (Primitive r0)    = getResistance r0
+calcRes (Serial r1 r2)    = calcRes r1 + calcRes r2
+calcRes (Parallel r1 r2)  = 1 / ((1 / calcRes r1) + (1 / calcRes r2))
+
+res0 :: SPGraph (Input Resistance) (Output Resistance)
+res0 = Primitive Resistance{r = 5}
+
+res1 :: SPGraph (Input Resistance) (Output Resistance)
+res1 = Primitive Resistance{r = 2}
+
+res2 :: SPGraph (Input Resistance) (Output Resistance)
+res2 = Primitive Resistance{r = 10}
+
+chain :: SPGraph (Input Resistance) (Output Resistance)
+chain = Serial res0 (Parallel res1 res2)
