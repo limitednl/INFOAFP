@@ -32,6 +32,12 @@ instance Comp Resistance where
 --     type (Input Battery)  = 'Zero
 --     type (Output Battery) = 'Zero
 
+serial :: Chain
+serial = Chain (+)
+
+parallel :: Chain
+parallel = Chain (\x y -> 1 / (1 / x + 1 / y))
+
 calcRes :: SPGraph a -> Float
 calcRes (Primitive r0)    = getResistance r0
 calcRes (Link (Chain f) r1 r2)    = f (calcRes r1) (calcRes r2)
@@ -46,4 +52,4 @@ res2 :: SPGraph a
 res2 = Primitive Resistance{r = 10}
 
 chain :: SPGraph a
-chain = Serial res0 (Parallel res1 res2)
+chain = Link serial res0 (Link parallel res1 res2)
